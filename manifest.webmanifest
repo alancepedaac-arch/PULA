@@ -1,0 +1,30 @@
+{
+  "name": "Pula",
+  "short_name": "Pula",
+  "description": "Marcador del juego de cartas Pula",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "any",
+  "background_color": "#0E3B2B",
+  "theme_color": "#0E3B2B",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "iconos/icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "iconos/icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

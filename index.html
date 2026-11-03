@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E3B2B">
+<meta name="description" content="Marcador del juego de cartas Pula: 100 puntos por jugador, se restan por mano y quien llega a 0 paga.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pula">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="iconos/favicon-32.png">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+<title>Pula</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+/* Layout: mesa de casino. Arriba el nombre, el tiempo y quien barajea; debajo las acciones y una cuadricula con un cuadro por jugador. */
+:root {
+  --felt-1: #17573F;
+  --felt-2: #0E3B2B;
+  --felt-3: #0A2C20;
+  --gold: #E8B54A;
+  --sky: #7DD3FC;
+  --orange: #F08A3C;
+  --ink: #F1F6F0;
+  --muted: #9FBBAE;
+  --panel: rgba(5, 28, 20, 0.62);
+  --deep: #0C3426;
+  --on-gold: #0A2C20;
+  --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+html { height: 100%; }
+body {
+  min-height: 100%;
+  box-sizing: border-box;
+  background: radial-gradient(ellipse at 50% 18%, var(--felt-1) 0%, var(--felt-2) 55%, var(--felt-3) 100%), var(--felt-3);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.4;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+button { font-family: inherit; }
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+/* Encabezado */
+.top { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; justify-content: space-between; }
+.brand { min-width: 0; }
+h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 7vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--gold);
+  text-shadow: 0 2px 18px rgba(232, 181, 74, 0.25);
+}
+.rule { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); max-width: 40ch; }
+.strip { display: flex; flex-wrap: wrap; gap: 12px; }
+.box {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 0;
+  padding: 10px 16px 12px;
+  background: var(--panel);
+  border: 1.5px solid rgba(125, 211, 252, 0.55);
+  border-radius: 12px;
+}
+.lbl { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sky); }
+.val { font-family: var(--display); font-weight: 800; font-size: 1.8rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.box.dealer .val { font-size: 1.4rem; max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini { display: flex; gap: 14px; margin-top: 2px; }
+.link {
+  background: none; border: 0; padding: 4px 0; min-height: 28px;
+  color: var(--sky); font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.link:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Acciones */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
+.actions .btn { flex: 1 1 170px; max-width: 280px; min-height: 50px; font-size: 1rem; }
+.tools { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 8px; }
+.tools .link { min-height: 36px; }
+.btn {
+  min-height: 44px;
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--gold);
+  border: 1.5px solid rgba(232, 181, 74, 0.6);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.btn:hover:not(:disabled) { background: rgba(232, 181, 74, 0.14); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 700; }
+.btn.primary:hover:not(:disabled) { background: #F2C566; }
+
+/* Cuadros de jugadores */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+.card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 0;
+  min-height: 196px;
+  padding: 16px 16px 14px;
+  text-align: left;
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px solid rgba(232, 181, 74, 0.45);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.25s, border-color 0.2s, background 0.25s;
+}
+.card:hover:not(:disabled) { border-color: var(--sky); transform: translateY(-2px); }
+.card:active:not(:disabled) { transform: scale(0.98); }
+.card:disabled { cursor: default; color: var(--ink); }
+.nm {
+  font-size: 0.85rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--gold);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; }
+.tag {
+  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; line-height: 1.2;
+}
+.t-lead { background: var(--gold); color: var(--on-gold); }
+.t-win { background: var(--gold); color: var(--on-gold); box-shadow: 0 0 14px rgba(232, 181, 74, 0.7); }
+.t-deal { background: var(--sky); color: var(--on-gold); }
+.t-done { border: 1px solid var(--muted); color: var(--muted); padding: 2px 7px; }
+.mid { flex: 1; display: flex; align-items: center; }
+.pts {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(3rem, 10vw, 4.6rem); line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.card.low .pts { color: var(--orange); }
+.foot { display: flex; justify-content: space-between; gap: 8px; font-size: 0.78rem; color: var(--muted); min-height: 1.2em; }
+.card.lead, .card.win {
+  border-color: var(--gold);
+  background: linear-gradient(160deg, rgba(232, 181, 74, 0.28), rgba(5, 28, 20, 0.72));
+  box-shadow: 0 0 0 3px rgba(232, 181, 74, 0.35), 0 14px 44px rgba(232, 181, 74, 0.4);
+  transform: translateY(-3px);
+}
+.card.win { box-shadow: 0 0 0 4px rgba(232, 181, 74, 0.55), 0 18px 60px rgba(232, 181, 74, 0.6); }
+
+/* Ventanas */
+.overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(3, 18, 13, 0.74);
+  animation: fade 0.18s ease-out;
+}
+.overlay.pay { z-index: 55; background: rgba(3, 18, 13, 0.82); cursor: pointer; }
+.dialog {
+  width: min(100%, 460px); max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  padding: 24px;
+  background: var(--deep);
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  animation: pop 0.2s ease-out;
+}
+.dialog h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 800; font-size: 1.7rem; line-height: 1.15; color: var(--gold); text-wrap: balance; }
+.sub { margin: 0 0 8px; color: var(--muted); font-size: 0.92rem; }
+.sub.warn { color: var(--orange); font-weight: 600; }
+.who { margin: 0 0 14px; color: var(--sky); font-weight: 600; overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.row .btn { flex: 1 1 130px; }
+input[type=text], input[type=number] {
+  width: 100%; box-sizing: border-box;
+  min-height: 46px; padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  border: 1.5px solid rgba(125, 211, 252, 0.5);
+  border-radius: 10px;
+  font: 500 1rem var(--body);
+}
+input.big { font: 800 2.4rem var(--display); text-align: center; min-height: 72px; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
+input.big::-webkit-outer-spin-button, input.big::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input::placeholder { color: rgba(159, 187, 174, 0.7); }
+.prev { margin: 10px 0 0; min-height: 1.5em; color: var(--sky); font-size: 0.92rem; font-weight: 600; text-align: center; }
+.prev.bad { color: var(--orange); }
+.plist { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.prow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.pn {
+  display: grid; place-items: center; flex: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--sky); color: var(--on-gold);
+  font-size: 0.8rem; font-weight: 800;
+}
+.rm { min-width: 44px; padding: 8px 0; color: var(--muted); border-color: rgba(159, 187, 174, 0.4); font-size: 1.2rem; line-height: 1; }
+.pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; margin: 14px 0 0; }
+.pickbtn {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  min-height: 48px; padding: 12px 14px; text-align: left;
+  background: rgba(0, 0, 0, 0.25); color: var(--ink);
+  border: 1.5px solid rgba(125, 211, 252, 0.45); border-radius: 10px;
+  font-size: 1rem; font-weight: 600; cursor: pointer;
+}
+.pickbtn > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickbtn:hover { border-color: var(--sky); }
+.pickbtn[aria-pressed="true"], .pickbtn.on { border-color: var(--gold); background: rgba(232, 181, 74, 0.2); box-shadow: 0 0 0 2px var(--gold); }
+.pickbtn.fin { flex-direction: column; align-items: flex-start; gap: 2px; }
+.pickbtn.fin .n { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickbtn.fin .v { font-family: var(--display); font-weight: 800; font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pickbtn.fin .t { font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sky); min-height: 1em; }
+.opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; margin-top: 10px; }
+.opt small { font-weight: 500; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+/* Ganador */
+.dialog.win { text-align: center; border-width: 3px; box-shadow: 0 0 0 4px rgba(232, 181, 74, 0.3), 0 24px 90px rgba(232, 181, 74, 0.35); }
+.kick { margin: 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sky); }
+.wname { margin: 10px 0 18px; font-family: var(--display); font-weight: 900; font-size: clamp(2.4rem, 9vw, 3.6rem); line-height: 1.05; color: var(--ink); overflow-wrap: anywhere; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.stat { padding: 10px 6px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(125, 211, 252, 0.35); border-radius: 10px; }
+.stat b { display: block; font-family: var(--display); font-size: 1.7rem; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+/* Letrero de pago */
+.pay-card {
+  width: min(100%, 520px); box-sizing: border-box;
+  padding: 28px 24px 24px; text-align: center;
+  background: var(--orange); color: #2A1200;
+  border: 4px solid #FFD9B8; border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  animation: pop 0.25s ease-out;
+}
+.pay-name { font-family: var(--display); font-weight: 900; font-size: clamp(2.2rem, 9vw, 4rem); line-height: 1.1; }
+.pay-name .w { display: inline-block; white-space: nowrap; }
+.pay-name .w span { display: inline-block; animation: bounce 0.9s ease-in-out infinite; }
+.pay-lbl { margin-top: 6px; font-weight: 800; font-size: clamp(1.6rem, 6vw, 2.2rem); letter-spacing: 0.3em; text-transform: uppercase; }
+.pay-info { margin: 12px 0 18px; font-size: 1rem; font-weight: 600; }
+.pay-card .btn { color: #2A1200; border-color: #2A1200; }
+.pay-card .btn:hover:not(:disabled) { background: rgba(42, 18, 0, 0.12); }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  max-width: min(92vw, 440px); padding: 12px 18px; text-align: center;
+  background: var(--deep); color: var(--ink);
+  border: 1.5px solid var(--sky); border-radius: 10px;
+  font-size: 0.92rem; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } 60% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+@media (max-width: 480px) {
+  .strip { width: 100%; }
+  .strip .box { flex: 1 1 140px; }
+  .dialog { padding: 20px; }
+}
+</style>
+<style>
+/* Reset de la página autónoma (el artefacto lo traía incluido) */
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Pula</h1>
+      <p class="rule">Todos empiezan con 100 puntos. Llegar a 0 es pagar.</p>
+    </div>
+    <div class="strip">
+      <div class="box">
+        <span class="lbl">Tiempo</span>
+        <span id="time" class="val">00:00</span>
+      </div>
+      <div class="box dealer">
+        <span class="lbl">Barajea</span>
+        <span id="dealer" class="val">—</span>
+        <div class="mini">
+          <button id="btnDealer" class="link" type="button">Cambiar</button>
+          <button id="btnNext" class="link" type="button">Cerrar mano ›</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="actions">
+    <button id="bNew" class="btn" type="button">Volver a jugar</button>
+    <button id="bEnd" class="btn primary" type="button">Fin de juego</button>
+  </div>
+  <div class="tools">
+    <button id="bUndo" class="link" type="button">Deshacer</button>
+    <button id="bSound" class="link" type="button">Sonido: activado</button>
+    <button id="bFull" class="link" type="button">Pantalla completa</button>
+  </div>
+
+  <main id="grid" class="grid" aria-label="Jugadores"></main>
+</div>
+
+<div id="modal" class="overlay" hidden></div>
+<div id="pay" class="overlay pay" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'pula-estado-v1';
+  var MAX = 8, MIN = 2, START = 100, LOW = 20;
+  var MINUS = '−';
+  var $ = function (s) { return document.querySelector(s); };
+
+  function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt != null) n.textContent = txt;
+    return n;
+  }
+  function btn(txt, cls, fn) {
+    var b = el('button', 'btn ' + (cls || ''), txt);
+    b.type = 'button';
+    if (fn) b.addEventListener('click', fn);
+    return b;
+  }
+
+  /* ---------- Estado ---------- */
+  function fresh() {
+    return { players: [], dealer: 0, startTs: null, endTs: null, winner: null, sound: true, history: [] };
+  }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && Array.isArray(s.players) && s.players.length >= MIN) {
+        s.history = Array.isArray(s.history) ? s.history : [];
+        return Object.assign(fresh(), s);
+      }
+    } catch (e) {}
+    return null;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  var state = load() || fresh();
+  var toastT = 0, payT = 0, cfRaf = 0;
+
+  function finished() { return state.winner != null; }
+  function elapsed() { return state.startTs ? (state.endTs || Date.now()) - state.startTs : 0; }
+  function fmtTime(ms) {
+    var t = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return h ? h + ':' + p(m) + ':' + p(s) : p(m) + ':' + p(s);
+  }
+  function leaders() {
+    var ps = state.players;
+    if (ps.length < 2) return [];
+    var mx = Math.max.apply(null, ps.map(function (p) { return p.pts; }));
+    if (ps.every(function (p) { return p.pts === mx; })) return [];
+    var out = [];
+    ps.forEach(function (p, i) { if (p.pts === mx) out.push(i); });
+    return out;
+  }
+
+  /* ---------- Pantalla principal ---------- */
+  function render() {
+    var g = $('#grid');
+    g.replaceChildren();
+    var fin = finished();
+    var lead = fin ? [] : leaders();
+    state.players.forEach(function (p, i) {
+      var b = el('button', 'card');
+      b.type = 'button';
+      if (lead.indexOf(i) >= 0) b.classList.add('lead');
+      if (fin && state.winner === i) b.classList.add('win');
+      if (p.pts <= LOW) b.classList.add('low');
+      b.disabled = fin;
+      b.title = p.name;
+      b.setAttribute('aria-label', p.name + ', ' + p.pts + ' puntos' + (fin ? '' : '. Toca para restar puntos'));
+
+      var tags = el('div', 'tags');
+      if (fin && state.winner === i) tags.append(el('span', 'tag t-win', 'Ganador'));
+      else if (lead.indexOf(i) >= 0) tags.append(el('span', 'tag t-lead', 'Va ganando'));
+      if (!fin && p.done) tags.append(el('span', 'tag t-done', 'Restado'));
+
+      var mid = el('div', 'mid');
+      mid.append(el('div', 'pts', String(p.pts)));
+
+      var foot = el('div', 'foot');
+      var left = p.last != null ? 'Última ' + (p.last ? MINUS + p.last : '0') : (fin ? '' : 'Toca para restar');
+      foot.append(el('span', '', left), el('span', '', p.pays ? 'Pagó ' + p.pays + '×' : ''));
+
+      b.append(el('div', 'nm', p.name), tags, mid, foot);
+      b.addEventListener('click', function () { openSubtract(i); });
+      g.append(b);
+    });
+
+    var has = state.players.length > 0;
+    $('#dealer').textContent = has ? state.players[state.dealer].name : '—';
+    $('#time').textContent = fmtTime(elapsed());
+    $('#bUndo').disabled = fin || !state.history.length;
+    $('#bEnd').disabled = fin || !has;
+    $('#bNew').disabled = !has;
+    $('#btnDealer').disabled = fin || !has;
+    $('#btnNext').disabled = fin || !has;
+    $('#bSound').textContent = state.sound ? 'Sonido: activado' : 'Sonido: silenciado';
+  }
+
+  /* ---------- Ventanas ---------- */
+  var modalState = null, lastFocus = null;
+  function dlg(title, cls) {
+    var d = el('div', 'dialog ' + (cls || ''));
+    d.setAttribute('role', 'dialog');
+    d.setAttribute('aria-modal', 'true');
+    if (title) {
+      var h = el('h2', '', title);
+      h.id = 'dlg-titulo';
+      d.setAttribute('aria-labelledby', 'dlg-titulo');
+      d.append(h);
+    }
+    return d;
+  }
+  function openModal(d, opts) {
+    var root = $('#modal');
+    if (root.hidden) lastFocus = document.activeElement;
+    root.replaceChildren(d);
+    root.hidden = false;
+    modalState = { dismiss: !opts || opts.dismiss !== false };
+    var f = d.querySelector('[data-focus]') || d.querySelector('input,button:not(:disabled)');
+    if (f) setTimeout(function () { f.focus(); }, 30);
+  }
+  function closeModal() {
+    var root = $('#modal');
+    root.hidden = true;
+    root.replaceChildren();
+    modalState = null;
+    if (lastFocus && document.contains(lastFocus)) { try { lastFocus.focus(); } catch (e) {} }
+  }
+  $('#modal').addEventListener('mousedown', function (e) {
+    if (e.target.id === 'modal' && modalState && modalState.dismiss) closeModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!$('#pay').hidden) hidePay();
+      else if (modalState && modalState.dismiss) closeModal();
+    }
+    if (e.key === 'Tab' && modalState) {
+      var f = Array.prototype.slice.call($('#modal').querySelectorAll('button:not(:disabled),input'));
+      if (!f.length) return;
+      var a = f[0], z = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+      else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+    }
+  });
+
+  function toast(t) {
+    var n = $('#toast');
+    n.textContent = t;
+    n.hidden = false;
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { n.hidden = true; }, 3200);
+  }
+
+  /* ---------- Restar puntos ---------- */
+  function openSubtract(i) {
+    if (finished()) { toast('El juego terminó. Usa Volver a jugar para empezar otro.'); return; }
+    var p = state.players[i];
+    var d = dlg('¿Cuántos puntos te resto?');
+    d.append(el('p', 'who', p.name + ' · tiene ' + p.pts + ' puntos'));
+    var inp = el('input', 'big');
+    inp.id = 'inp-puntos';
+    inp.type = 'number';
+    inp.inputMode = 'numeric';
+    inp.min = '0';
+    inp.step = '1';
+    inp.placeholder = '0';
+    inp.setAttribute('aria-label', 'Puntos a restar');
+    inp.setAttribute('data-focus', '');
+    var prev = el('p', 'prev', ' ');
+    prev.setAttribute('aria-live', 'polite');
+
+    function val() {
+      var t = inp.value.trim();
+      return /^\d+$/.test(t) ? parseInt(t, 10) : null;
+    }
+    function upd() {
+      var n = val();
+      prev.className = 'prev';
+      if (n == null) {
+        prev.textContent = inp.value.trim() ? 'Escribe un número entero, 0 o mayor.' : ' ';
+        return;
+      }
+      if (n > 0 && p.pts - n <= 0) {
+        prev.textContent = 'Llegas a 0: ' + p.name + ' paga.';
+        prev.classList.add('bad');
+      } else {
+        prev.textContent = 'Quedas con ' + (p.pts - n) + ' puntos.';
+      }
+    }
+    function go() {
+      var n = val();
+      if (n == null) { upd(); inp.focus(); return; }
+      closeModal();
+      subtract(i, n);
+    }
+    inp.addEventListener('input', upd);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+
+    var row = el('div', 'row');
+    row.append(btn('Cancelar', '', closeModal), btn('Restar', 'primary', go));
+    d.append(inp, prev, row);
+    openModal(d);
+  }
+
+  function snapshot() {
+    state.history.push({ players: JSON.parse(JSON.stringify(state.players)), dealer: state.dealer });
+    if (state.history.length > 40) state.history.shift();
+  }
+  function closeHand() {
+    state.dealer = (state.dealer + 1) % state.players.length;
+    state.players.forEach(function (q) { q.done = false; });
+  }
+  function subtract(i, n) {
+    snapshot();
+    var p = state.players[i];
+    p.pts -= n;
+    p.last = n;
+    p.done = true;
+    var pays = n > 0 && p.pts <= 0;
+    var mn = 0, src = [];
+    if (pays) {
+      var others = state.players.filter(function (_, k) { return k !== i; });
+      mn = Math.min.apply(null, others.map(function (o) { return o.pts; }));
+      src = others.filter(function (o) { return o.pts === mn; }).map(function (o) { return o.name; });
+      p.pts = mn;
+      p.pays = (p.pays || 0) + 1;
+    }
+    var rotated = false;
+    var doneCount = state.players.filter(function (q) { return q.done; }).length;
+    if (doneCount >= state.players.length) { closeHand(); rotated = true; }
+    save();
+    render();
+    if (pays) { showPay(p.name, mn, src); sfx('pay'); } else { sfx('ding'); }
+    if (rotated) toast('Mano cerrada. Ahora baraja ' + state.players[state.dealer].name + '.');
+  }
+  function undo() {
+    if (finished()) return;
+    var h = state.history.pop();
+    if (!h) return;
+    state.players = h.players;
+    state.dealer = h.dealer;
+    hidePay();
+    save();
+    render();
+    toast('Se deshizo la última resta.');
+  }
+
+  /* ---------- Letrero de pago ---------- */
+  function showPay(name, pts, src) {
+    var o = $('#pay');
+    o.replaceChildren();
+    var c = el('div', 'pay-card');
+    c.setAttribute('role', 'alert');
+    c.setAttribute('aria-label', name + ' paga. Vuelve con ' + pts + ' puntos.');
+    var nm = el('div', 'pay-name');
+    nm.setAttribute('aria-hidden', 'true');
+    var li = 0;
+    name.split(' ').forEach(function (word, wi, arr) {
+      var w = el('span', 'w');
+      Array.from(word).forEach(function (ch) {
+        var s = el('span', '', ch);
+        s.style.animationDelay = (li++ * 70) + 'ms';
+        w.append(s);
+      });
+      nm.append(w);
+      if (wi < arr.length - 1) nm.append(document.createTextNode(' '));
+    });
+    var info = el('p', 'pay-info', 'Vuelve con ' + pts + ' puntos, los de ' + src.join(' y ') + '.');
+    var ok = btn('Entendido', '', hidePay);
+    c.append(nm, el('div', 'pay-lbl', 'Pagas'), info, ok);
+    o.append(c);
+    o.hidden = false;
+    clearTimeout(payT);
+    payT = setTimeout(hidePay, 7000);
+  }
+  function hidePay() {
+    clearTimeout(payT);
+    $('#pay').hidden = true;
+  }
+  $('#pay').addEventListener('click', hidePay);
+
+  /* ---------- Jugadores y barajea ---------- */
+  function openSetup(prefill, canCancel) {
+    var names = prefill && prefill.length ? prefill.slice() : ['', '', ''];
+    var d = dlg('¿Quiénes juegan?');
+    d.append(el('p', 'sub', 'De 2 a 8 jugadores. El orden es el de la mesa.'));
+    var list = el('div', 'plist');
+    var err = el('p', 'prev bad', ' ');
+    err.setAttribute('role', 'alert');
+    var add = btn('+ Agregar jugador', '', function () {
+      if (names.length >= MAX) return;
+      names.push('');
+      draw();
+      var ins = list.querySelectorAll('input');
+      ins[ins.length - 1].focus();
+    });
+
+    function draw() {
+      list.replaceChildren();
+      names.forEach(function (n, k) {
+        var r = el('div', 'prow');
+        var id = 'nombre-' + k;
+        var l = el('label', 'pn', String(k + 1));
+        l.htmlFor = id;
+        var inp = el('input', '');
+        inp.id = id;
+        inp.type = 'text';
+        inp.maxLength = 20;
+        inp.value = n;
+        inp.autocomplete = 'off';
+        inp.placeholder = 'Nombre del jugador';
+        inp.setAttribute('aria-label', 'Nombre del jugador ' + (k + 1));
+        inp.addEventListener('input', function () { names[k] = inp.value; });
+        inp.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          var nx = list.querySelectorAll('input')[k + 1];
+          if (nx) nx.focus(); else next();
+        });
+        var rm = btn('×', 'rm', function () { names.splice(k, 1); draw(); });
+        rm.setAttribute('aria-label', 'Quitar jugador ' + (k + 1));
+        rm.disabled = names.length <= MIN;
+        r.append(l, inp, rm);
+        list.append(r);
+      });
+      add.disabled = names.length >= MAX;
+    }
+    function next() {
+      var clean = names.map(function (s) { return s.trim(); });
+      var empty = clean.indexOf('');
+      if (empty >= 0) {
+        err.textContent = 'Escribe el nombre de cada jugador o quita la fila.';
+        list.querySelectorAll('input')[empty].focus();
+        return;
+      }
+      var low = clean.map(function (s) { return s.toLowerCase(); });
+      if (new Set(low).size !== low.length) {
+        err.textContent = 'Los nombres deben ser distintos.';
+        return;
+      }
+      openDealer({ names: clean, start: true, back: function () { openSetup(clean, canCancel); } });
+    }
+    draw();
+    var row = el('div', 'row');
+    if (canCancel) row.append(btn('Cancelar', '', closeModal));
+    row.append(btn('Siguiente', 'primary', next));
+    d.append(list, add, err, row);
+    openModal(d, { dismiss: !!canCancel });
+    var first = list.querySelector('input');
+    if (first) first.setAttribute('data-focus', '');
+  }
+
+  function openDealer(o) {
+    var d = dlg(o.start ? '¿Quién barajea?' : '¿Quién barajea ahora?');
+    d.append(el('p', 'sub', o.start ? 'Al elegir, arranca el tiempo del juego.' : 'Toca al jugador que baraja.'));
+    var g = el('div', 'pick');
+    o.names.forEach(function (n, i) {
+      var b = el('button', 'pickbtn');
+      b.type = 'button';
+      if (!o.start && i === state.dealer) b.classList.add('on');
+      b.append(el('span', 'pn', String(i + 1)), el('span', '', n));
+      b.addEventListener('click', function () {
+        if (o.start) begin(o.names, i);
+        else { state.dealer = i; save(); render(); closeModal(); }
+      });
+      g.append(b);
+    });
+    var row = el('div', 'row');
+    row.append(o.back ? btn('Atrás', '', o.back) : btn('Cancelar', '', closeModal));
+    d.append(g, row);
+    openModal(d, { dismiss: !o.start });
+  }
+
+  function begin(names, dealer) {
+    var snd = state.sound;
+    state = fresh();
+    state.sound = snd;
+    state.players = names.map(function (n, k) { return { id: k, name: n, pts: START, pays: 0, last: null }; });
+    state.dealer = dealer;
+    state.startTs = Date.now();
+    hidePay();
+    closeModal();
+    save();
+    render();
+    sfx('ding');
+    toast('Empieza el juego. Baraja ' + names[dealer] + '.');
+  }
+
+  function openNewGame() {
+    var inProgress = !finished() && state.history.length > 0;
+    var names = state.players.map(function (p) { return p.name; });
+    var d = dlg('Volver a jugar');
+    if (inProgress) d.append(el('p', 'sub warn', 'Hay un juego en curso. Si empiezas otro, se pierde.'));
+    var a = btn('', 'opt', function () { openDealer({ names: names, start: true, back: openNewGame }); });
+    a.append(el('span', '', 'Mismos jugadores'), el('small', '', names.join(', ')));
+    var b = btn('', 'opt', function () { openSetup(names, true); });
+    b.append(el('span', '', 'Cambiar jugadores'), el('small', '', 'Editar nombres, agregar o quitar'));
+    var row = el('div', 'row');
+    row.append(btn('Cancelar', '', closeModal));
+    d.append(a, b, row);
+    openModal(d);
+  }
+
+  /* ---------- Fin de juego ---------- */
+  function openFinish() {
+    if (finished() || !state.players.length) return;
+    var d = dlg('Fin de juego');
+    d.append(el('p', 'sub', 'Toca al jugador que gana.'));
+    var sel = -1;
+    var lead = leaders();
+    var g = el('div', 'pick');
+    var ok = btn('Confirmar ganador', 'primary', function () { if (sel >= 0) declare(sel); });
+    ok.disabled = true;
+    var pickBtns = [];
+    state.players.forEach(function (p, i) {
+      var b = el('button', 'pickbtn fin');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.append(el('span', 'n', p.name), el('span', 'v', String(p.pts)), el('span', 't', lead.indexOf(i) >= 0 ? 'Va ganando' : ''));
+      b.addEventListener('click', function () {
+        sel = i;
+        pickBtns.forEach(function (x, k) { x.setAttribute('aria-pressed', k === i ? 'true' : 'false'); });
+        ok.disabled = false;
+      });
+      pickBtns.push(b);
+      g.append(b);
+    });
+    var row = el('div', 'row');
+    row.append(btn('Cancelar', '', closeModal), ok);
+    d.append(g, row);
+    openModal(d);
+  }
+  function declare(i) {
+    state.winner = i;
+    state.endTs = Date.now();
+    save();
+    closeModal();
+    render();
+    sfx('fanfare');
+    confetti();
+    openWinner();
+  }
+  function openWinner() {
+    var p = state.players[state.winner];
+    if (!p) return;
+    var d = dlg('¡Felicidades!', 'win');
+    d.insertBefore(el('p', 'kick', 'Ganador del juego'), d.firstChild);
+    d.append(el('div', 'wname', p.name));
+    var st = el('div', 'stats');
+    [[String(p.pts), 'Puntos finales'], [fmtTime(elapsed()), 'Tiempo de juego'], [String(p.pays || 0), 'Veces que pagó']].forEach(function (x) {
+      var c = el('div', 'stat');
+      c.append(el('b', '', x[0]), el('span', '', x[1]));
+      st.append(c);
+    });
+    var row = el('div', 'row');
+    row.append(btn('Ver tabla', '', closeModal), btn('Volver a jugar', 'primary', openNewGame));
+    d.append(st, row);
+    openModal(d);
+  }
+
+  /* ---------- Sonido ---------- */
+  var ac = null;
+  function ctx() {
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      return ac;
+    } catch (e) { return null; }
+  }
+  function tone(f, t, dur, type, vol) {
+    var a = ctx();
+    if (!a) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = f;
+    var s = a.currentTime + t;
+    g.gain.setValueAtTime(0.0001, s);
+    g.gain.exponentialRampToValueAtTime(vol || 0.15, s + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+    o.connect(g);
+    g.connect(a.destination);
+    o.start(s);
+    o.stop(s + dur + 0.05);
+  }
+  function sfx(kind) {
+    if (!state.sound) return;
+    if (kind === 'ding') {
+      tone(988, 0, 0.5, 'sine', 0.16);
+      tone(1319, 0.08, 0.6, 'sine', 0.1);
+    } else if (kind === 'pay') {
+      tone(392, 0, 0.28, 'triangle', 0.2);
+      tone(294, 0.22, 0.28, 'triangle', 0.2);
+      tone(196, 0.44, 0.6, 'triangle', 0.22);
+    } else {
+      [523, 659, 784, 1047, 784, 1047].forEach(function (f, n) { tone(f, n * 0.16, n === 5 ? 0.9 : 0.28, 'triangle', 0.16); });
+    }
+  }
+
+  /* ---------- Confeti ---------- */
+  function confetti() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var c = $('#confetti'), x = c.getContext('2d');
+    var W = c.width = window.innerWidth, H = c.height = window.innerHeight;
+    var cols = ['#E8B54A', '#7DD3FC', '#F08A3C', '#F1F6F0', '#4ADE80'];
+    var ps = Array.from({ length: 170 }, function () {
+      return {
+        x: Math.random() * W, y: -20 - Math.random() * H * 0.6,
+        w: 6 + Math.random() * 7, h: 10 + Math.random() * 10,
+        vx: -2 + Math.random() * 4, vy: 2 + Math.random() * 4,
+        r: Math.random() * 6.28, vr: -0.2 + Math.random() * 0.4,
+        c: cols[Math.floor(Math.random() * cols.length)]
+      };
+    });
+    var t0 = performance.now();
+    cancelAnimationFrame(cfRaf);
+    function loop(t) {
+      x.clearRect(0, 0, W, H);
+      var alive = 0;
+      ps.forEach(function (p) {
+        p.x += p.vx + Math.sin(p.y / 40);
+        p.y += p.vy;
+        p.vy += 0.03;
+        p.r += p.vr;
+        if (p.y < H + 30) alive++;
+        x.save();
+        x.translate(p.x, p.y);
+        x.rotate(p.r);
+        x.fillStyle = p.c;
+        x.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        x.restore();
+      });
+      if (alive && t - t0 < 9000) cfRaf = requestAnimationFrame(loop);
+      else x.clearRect(0, 0, W, H);
+    }
+    loop(t0);
+  }
+
+  /* ---------- Botones ---------- */
+  $('#bUndo').addEventListener('click', undo);
+  $('#bNew').addEventListener('click', openNewGame);
+  $('#bEnd').addEventListener('click', openFinish);
+  $('#bSound').addEventListener('click', function () {
+    state.sound = !state.sound;
+    save();
+    render();
+    if (state.sound) sfx('ding');
+  });
+  $('#bFull').addEventListener('click', function () {
+    var no = function () { toast('La pantalla completa no está disponible aquí.'); };
+    try {
+      if (document.fullscreenElement) { document.exitFullscreen(); return; }
+      var pr = document.documentElement.requestFullscreen();
+      if (pr && pr.catch) pr.catch(no);
+    } catch (e) { no(); }
+  });
+  $('#btnDealer').addEventListener('click', function () {
+    openDealer({ names: state.players.map(function (p) { return p.name; }), start: false });
+  });
+  $('#btnNext').addEventListener('click', function () {
+    snapshot();
+    closeHand();
+    save();
+    render();
+    toast('Baraja ' + state.players[state.dealer].name + '.');
+  });
+
+  /* ---------- Arranque ---------- */
+  render();
+  setInterval(function () { $('#time').textContent = fmtTime(elapsed()); }, 1000);
+  if (state.players.length < MIN) openSetup(null, false);
+})();
+</script>
+</body>
+</html>
